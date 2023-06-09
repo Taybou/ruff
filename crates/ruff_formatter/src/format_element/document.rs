@@ -1,6 +1,6 @@
 use super::tag::Tag;
 use crate::format_element::tag::DedentMode;
-use crate::prelude::tag::GroupMode;
+use crate::prelude::tag::{ContentMode, GroupMode};
 use crate::prelude::*;
 use crate::printer::LineEnding;
 use crate::source_code::SourceCode;
@@ -445,10 +445,10 @@ impl Format<IrFormatContext<'_>> for &[FormatElement] {
 
                         StartConditionalContent(condition) => {
                             match condition.mode {
-                                PrintMode::Flat => {
+                                ContentMode::Flat => {
                                     write!(f, [text("if_group_fits_on_line(")])?;
                                 }
-                                PrintMode::Expanded => {
+                                ContentMode::Expanded => {
                                     write!(f, [text("if_group_breaks(")])?;
                                 }
                             }
@@ -481,6 +481,10 @@ impl Format<IrFormatContext<'_>> for &[FormatElement] {
                             write!(f, [text("fill(")])?;
                         }
 
+                        StartFitExpanded => {
+                            write!(f, [text("fits_expanded(")])?;
+                        }
+
                         StartEntry => {
                             // handled after the match for all start tags
                         }
@@ -495,7 +499,8 @@ impl Format<IrFormatContext<'_>> for &[FormatElement] {
                         | EndGroup
                         | EndLineSuffix
                         | EndDedent
-                        | EndVerbatim => {
+                        | EndVerbatim
+                        | EndFitExpanded => {
                             write!(f, [ContentArrayEnd, text(")")])?;
                         }
                     };

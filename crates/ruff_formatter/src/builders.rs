@@ -1,4 +1,4 @@
-use crate::format_element::tag::{Condition, Tag};
+use crate::format_element::tag::{Condition, ContentMode, Tag};
 use crate::prelude::tag::{DedentMode, GroupMode, LabelId};
 use crate::prelude::*;
 use crate::{format_element, write, Argument, Arguments, FormatContext, GroupId, TextSize};
@@ -1347,7 +1347,7 @@ pub fn group<Context>(content: &impl Format<Context>) -> Group<Context> {
     Group {
         content: Argument::new(content),
         group_id: None,
-        should_expand: false,
+        mode: GroupMode::Flat,
     }
 }
 
@@ -1355,7 +1355,7 @@ pub fn group<Context>(content: &impl Format<Context>) -> Group<Context> {
 pub struct Group<'a, Context> {
     content: Argument<'a, Context>,
     group_id: Option<GroupId>,
-    should_expand: bool,
+    mode: GroupMode,
 }
 
 impl<Context> Group<'_, Context> {
@@ -1371,20 +1371,20 @@ impl<Context> Group<'_, Context> {
     /// in [PrintMode::Flat] to change some content to be printed in [`Expanded`](PrintMode::Expanded) regardless.
     /// See the documentation of the [`best_fitting`] macro for an example.
     pub fn should_expand(mut self, should_expand: bool) -> Self {
-        self.should_expand = should_expand;
+        self.mode = match should_expand {
+            true => GroupMode::Expand,
+            false => GroupMode::Flat,
+        };
         self
     }
 }
 
 impl<Context> Format<Context> for Group<'_, Context> {
     fn fmt(&self, f: &mut Formatter<Context>) -> FormatResult<()> {
-        let mode = match self.should_expand {
-            true => GroupMode::Expand,
-            false => GroupMode::Flat,
-        };
-
         f.write_element(FormatElement::Tag(StartGroup(
-            tag::Group::new().with_id(self.group_id).with_mode(mode),
+            tag::Group::new()
+                .with_id(self.group_id)
+                .with_mode(self.mode),
         )))?;
 
         Arguments::from(&self.content).fmt(f)?;
@@ -1397,9 +1397,30 @@ impl<Context> std::fmt::Debug for Group<'_, Context> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GroupElements")
             .field("group_id", &self.group_id)
-            .field("should_expand", &self.should_expand)
+            .field("mode", &self.mode)
             .field("content", &"{{content}}")
             .finish()
+    }
+}
+
+pub fn fits_expanded<Context, F>(contents: &F) -> FitsExpanded<Context>
+where
+    F: Format<Context>,
+{
+    FitsExpanded {
+        inner: Argument::new(contents),
+    }
+}
+
+pub struct FitsExpanded<'a, Context> {
+    inner: Argument<'a, Context>,
+}
+
+impl<Context> Format<Context> for FitsExpanded<'_, Context> {
+    fn fmt(&self, f: &mut Formatter<Context>) -> FormatResult<()> {
+        f.write_element(FormatElement::Tag(StartFitExpanded))?;
+        f.write_fmt(Arguments::from(&self.inner))?;
+        f.write_element(FormatElement::Tag(EndFitExpanded))
     }
 }
 
@@ -1533,7 +1554,7 @@ where
     IfGroupBreaks {
         content: Argument::new(content),
         group_id: None,
-        mode: PrintMode::Expanded,
+        mode: ContentMode::Expanded,
     }
 }
 
@@ -1612,7 +1633,7 @@ where
     Content: Format<Context>,
 {
     IfGroupBreaks {
-        mode: PrintMode::Flat,
+        mode: ContentMode::Flat,
         group_id: None,
         content: Argument::new(flat_content),
     }
@@ -1622,7 +1643,7 @@ where
 pub struct IfGroupBreaks<'a, Context> {
     content: Argument<'a, Context>,
     group_id: Option<GroupId>,
-    mode: PrintMode,
+    mode: ContentMode,
 }
 
 impl<Context> IfGroupBreaks<'_, Context> {
@@ -1698,8 +1719,8 @@ impl<Context> Format<Context> for IfGroupBreaks<'_, Context> {
 impl<Context> std::fmt::Debug for IfGroupBreaks<'_, Context> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name = match self.mode {
-            PrintMode::Flat => "IfGroupFitsOnLine",
-            PrintMode::Expanded => "IfGroupBreaks",
+            ContentMode::Flat => "IfGroupFitsOnLine",
+            ContentMode::Expanded => "IfGroupBreaks",
         };
 
         f.debug_struct(name)

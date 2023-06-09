@@ -1,3 +1,7 @@
+use crate::comments::{
+    dangling_node_comments, leading_node_comments, trailing_node_comments, Comments,
+};
+use crate::context::PyFormatContext;
 use anyhow::{anyhow, Context, Result};
 use ruff_formatter::prelude::*;
 use ruff_formatter::{format, write};
@@ -9,11 +13,6 @@ use rustpython_parser::ast::{Mod, Ranged};
 use rustpython_parser::lexer::lex;
 use rustpython_parser::{parse_tokens, Mode};
 use std::borrow::Cow;
-
-use crate::comments::{
-    dangling_node_comments, leading_node_comments, trailing_node_comments, Comments,
-};
-use crate::context::PyFormatContext;
 
 pub(crate) mod builders;
 pub mod cli;
@@ -408,10 +407,11 @@ Formatted twice:
     #[test]
     fn quick_test() {
         let src = r#"
-def test(): ...
-
-# Comment
-def with_leading_comment(): ...
+if [
+    aaaaaa,
+    BBBB,ccccccccc,ddddddd,eeeeeeeeee,ffffff
+] & bbbbbbbbbbbbbbbbbbddddddddddddddddddddddddddddbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:
+    ...
 "#;
         // Tokenize once
         let mut tokens = Vec::new();
@@ -433,9 +433,10 @@ def with_leading_comment(): ...
         // Uncomment the `dbg` to print the IR.
         // Use `dbg_write!(f, []) instead of `write!(f, [])` in your formatting code to print some IR
         // inside of a `Format` implementation
-        // dbg!(formatted
-        //     .document()
-        //     .display(formatted.context().source_code()));
+        use ruff_formatter::FormatContext;
+        dbg!(formatted
+            .document()
+            .display(formatted.context().source_code()));
 
         // dbg!(formatted
         //     .context()

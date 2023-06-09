@@ -37,7 +37,7 @@ impl FormatNodeRule<ExprList> for FormatExprList {
         });
 
         let comments = f.context().comments().clone();
-        let dangling = comments.dangling_comments(item.into());
+        let dangling = comments.dangling_comments(item);
 
         write!(
             f,

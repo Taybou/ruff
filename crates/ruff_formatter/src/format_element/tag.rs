@@ -1,4 +1,3 @@
-use crate::format_element::PrintMode;
 use crate::{GroupId, TextSize};
 #[cfg(debug_assertions)]
 use std::any::type_name;
@@ -70,6 +69,9 @@ pub enum Tag {
     /// See [crate::builders::labelled] for documentation.
     StartLabelled(LabelId),
     EndLabelled,
+
+    StartFitExpanded,
+    EndFitExpanded,
 }
 
 impl Tag {
@@ -88,6 +90,7 @@ impl Tag {
                 | Tag::StartLineSuffix
                 | Tag::StartVerbatim(_)
                 | Tag::StartLabelled(_)
+                | Tag::StartFitExpanded
         )
     }
 
@@ -111,6 +114,7 @@ impl Tag {
             StartLineSuffix | EndLineSuffix => TagKind::LineSuffix,
             StartVerbatim(_) | EndVerbatim => TagKind::Verbatim,
             StartLabelled(_) | EndLabelled => TagKind::Labelled,
+            StartFitExpanded | EndFitExpanded => TagKind::FitExpanded,
         }
     }
 }
@@ -132,6 +136,7 @@ pub enum TagKind {
     LineSuffix,
     Verbatim,
     Labelled,
+    FitExpanded,
 }
 
 #[derive(Debug, Copy, Default, Clone, Eq, PartialEq)]
@@ -203,9 +208,9 @@ pub enum DedentMode {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Condition {
-    /// - Flat -> Omitted if the enclosing group is a multiline group, printed for groups fitting on a single line
-    /// - Multiline -> Omitted if the enclosing group fits on a single line, printed if the group breaks over multiple lines.
-    pub(crate) mode: PrintMode,
+    /// - `Flat` -> Omitted if the enclosing group is a multiline group, printed for groups fitting on a single line
+    /// - `Expanded` -> Omitted if the enclosing group fits on a single line, printed if the group breaks over multiple lines.
+    pub(crate) mode: ContentMode,
 
     /// The id of the group for which it should check if it breaks or not. The group must appear in the document
     /// before the conditional group (but doesn't have to be in the ancestor chain).
@@ -213,7 +218,7 @@ pub struct Condition {
 }
 
 impl Condition {
-    pub fn new(mode: PrintMode) -> Self {
+    pub(crate) fn new(mode: ContentMode) -> Self {
         Self {
             mode,
             group_id: None,
@@ -224,10 +229,13 @@ impl Condition {
         self.group_id = id;
         self
     }
+}
 
-    pub fn mode(&self) -> PrintMode {
-        self.mode
-    }
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum ContentMode {
+    Flat,
+
+    Expanded,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

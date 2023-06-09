@@ -116,24 +116,6 @@ impl LineMode {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum PrintMode {
-    /// Omits any soft line breaks
-    Flat,
-    /// Prints soft line breaks as line breaks
-    Expanded,
-}
-
-impl PrintMode {
-    pub const fn is_flat(&self) -> bool {
-        matches!(self, PrintMode::Flat)
-    }
-
-    pub const fn is_expanded(&self) -> bool {
-        matches!(self, PrintMode::Expanded)
-    }
-}
-
 #[derive(Clone)]
 pub struct Interned(Rc<[FormatElement]>);
 

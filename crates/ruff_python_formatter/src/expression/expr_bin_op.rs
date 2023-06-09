@@ -36,68 +36,137 @@ impl FormatNodeRule<ExprBinOp> for FormatExprBinOp {
             range: _,
         } = item;
 
-        let should_break_right = self.parentheses == Some(Parentheses::Custom);
-
-        if should_break_right {
-            let left_group = f.group_id("BinaryLeft");
-
-            write!(
-                f,
-                [
-                    // Wrap the left in a group and gives it an id. The printer first breaks the
-                    // right side if `right` contains any line break because the printer breaks
-                    // sequences of groups from right to left.
-                    // Indents the left side if the group breaks.
-                    group(&format_args![
-                        if_group_breaks(&text("(")),
-                        indent_if_group_breaks(
-                            &format_args![
-                                soft_line_break(),
-                                left.format(),
-                                soft_line_break_or_space(),
-                                op.format(),
-                                space()
-                            ],
-                            left_group
-                        )
-                    ])
-                    .with_group_id(Some(left_group)),
-                    // Wrap the right in a group and indents its content but only if the left side breaks
-                    group(&indent_if_group_breaks(&right.format(), left_group)),
-                    // If the left side breaks, insert a hard line break to finish the indent and close the open paren.
-                    if_group_breaks(&format_args![hard_line_break(), text(")")])
-                        .with_group_id(Some(left_group))
-                ]
-            )
+        let layout = if self.parentheses == Some(Parentheses::Custom) {
+            BinaryLayout::from(item)
         } else {
-            let comments = f.context().comments().clone();
-            let operator_comments = comments.dangling_comments(item.as_any_node_ref());
-            let needs_space = !is_simple_power_expression(item);
+            BinaryLayout::Default
+        };
 
-            let before_operator_space = if needs_space {
-                soft_line_break_or_space()
-            } else {
-                soft_line_break()
-            };
+        match layout {
+            BinaryLayout::Default => {
+                let comments = f.context().comments().clone();
+                let operator_comments = comments.dangling_comments(item.as_any_node_ref());
+                let needs_space = !is_simple_power_expression(item);
 
-            write!(
-                f,
-                [
-                    left.format(),
-                    before_operator_space,
-                    op.format(),
-                    trailing_comments(operator_comments),
-                ]
-            )?;
+                let before_operator_space = if needs_space {
+                    soft_line_break_or_space()
+                } else {
+                    soft_line_break()
+                };
 
-            // Format the operator on its own line if the right side has any leading comments.
-            if comments.has_leading_comments(right.as_ref().into()) {
-                write!(f, [hard_line_break()])?;
-            } else if needs_space {
-                write!(f, [space()])?;
+                write!(
+                    f,
+                    [
+                        left.format(),
+                        before_operator_space,
+                        op.format(),
+                        trailing_comments(operator_comments),
+                    ]
+                )?;
+
+                // Format the operator on its own line if the right side has any leading comments.
+                if comments.has_leading_comments(right.as_ref()) {
+                    write!(f, [hard_line_break()])?;
+                } else if needs_space {
+                    write!(f, [space()])?;
+                }
+
+                write!(f, [group(&right.format())])
             }
 
-            write!(f, [group(&right.format())])
+            BinaryLayout::ExpandLeft => {
+                let parentheses_group = f.group_id("BinaryParentheses");
+                write!(
+                    f,
+                    [group(&format_args![
+                        if_group_breaks(&text("(")),
+                        // Only works thanks to the line break of `soft_block_indent`
+                        fits_expanded(&indent_if_group_breaks(
+                            &format_args![
+                                if_group_breaks(&soft_line_break())
+                                    .with_group_id(Some(parentheses_group)),
+                                &group(&left.format())
+                            ],
+                            parentheses_group
+                        )),
+                        indent(&format_args![
+                            soft_line_break_or_space(),
+                            op.format(),
+                            space(),
+                            right.format()
+                        ]),
+                        soft_line_break(),
+                        if_group_breaks(&text(")"))
+                    ])
+                    .with_group_id(Some(parentheses_group))]
+                )
+                // let left = left.format().memoized();
+                // let right = right.format().memoized();
+                // write!(
+                //     f,
+                //     [best_fitting![
+                //         format_args![left, space(), op.format(), space(), right],
+                //         format_args![group(&left), space(), op.format(), space(), right],
+                //         format_args![
+                //             text("("),
+                //             block_indent(&format_args![
+                //                 left,
+                //                 hard_line_break(),
+                //                 op.format(),
+                //                 space(),
+                //                 right
+                //             ]),
+                //             text(")")
+                //         ]
+                //     ]]
+                // )
+            }
+
+            BinaryLayout::ExpandRight => {
+                let left_group = f.group_id("BinaryLeft");
+
+                write!(
+                    f,
+                    [
+                        // Wrap the left in a group and gives it an id. The printer first breaks the
+                        // right side if `right` contains any line break because the printer breaks
+                        // sequences of groups from right to left.
+                        // Indents the left side if the group breaks.
+                        group(&format_args![
+                            if_group_breaks(&text("(")),
+                            indent_if_group_breaks(
+                                &format_args![
+                                    soft_line_break(),
+                                    left.format(),
+                                    soft_line_break_or_space(),
+                                    op.format(),
+                                    space()
+                                ],
+                                left_group
+                            )
+                        ])
+                        .with_group_id(Some(left_group)),
+                        // Wrap the right in a group and indents its content but only if the left side breaks
+                        group(&indent_if_group_breaks(&right.format(), left_group)),
+                        // If the left side breaks, insert a hard line break to finish the indent and close the open paren.
+                        if_group_breaks(&format_args![hard_line_break(), text(")")])
+                            .with_group_id(Some(left_group))
+                    ]
+                )
+            }
+
+            BinaryLayout::ExpandRightThenLeft => {
+                write!(
+                    f,
+                    [
+                        group(&left.format()),
+                        space(),
+                        op.format(),
+                        space(),
+                        group(&right.format())
+                    ]
+                )
+            }
         }
     }
 
@@ -178,10 +247,13 @@ impl NeedsParentheses for ExprBinOp {
     ) -> Parentheses {
         match default_expression_needs_parentheses(self.into(), parenthesize, source, comments) {
             Parentheses::Optional => {
-                if should_binary_break_right_side_first(self) {
-                    Parentheses::Custom
-                } else {
+                if BinaryLayout::from(self) == BinaryLayout::Default
+                    || comments.has_leading_comments(self.right.as_ref())
+                    || comments.has_dangling_comments(self)
+                {
                     Parentheses::Optional
+                } else {
+                    Parentheses::Custom
                 }
             }
             parentheses => parentheses,
@@ -189,31 +261,80 @@ impl NeedsParentheses for ExprBinOp {
     }
 }
 
-pub(super) fn should_binary_break_right_side_first(expr: &ExprBinOp) -> bool {
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+enum BinaryLayout {
+    /// Put each operand on their own line if either side expands
+    Default,
+
+    /// Try to expand the left to make it fit. Add parentheses if the left or right don't fit.
+    ///
+    ///```python
+    /// [
+    ///     a,
+    ///     b
+    /// ] & c
+    ///```
+    ExpandLeft,
+
+    /// Try to expand the right to make it fix. Add parentheses if the left or right don't fit.
+    ///
+    /// ```python
+    /// a & [
+    ///     b,
+    ///     c
+    /// ]
+    /// ```
+    ExpandRight,
+
+    /// Both the left and right side can be expanded. Try in the following order:
+    /// * expand the right side
+    /// * expand the left side
+    /// * expand both sides
+    ///
+    /// to make the expression fit
+    ///
+    /// ```python
+    /// [
+    ///     a,
+    ///     b
+    /// ] & [
+    ///     c,
+    ///     d
+    /// ]
+    /// ```
+    ExpandRightThenLeft,
+}
+
+impl BinaryLayout {
+    fn from(expr: &ExprBinOp) -> Self {
+        match (can_break(&expr.left), can_break(&expr.right)) {
+            (false, false) => Self::Default,
+            (true, false) => Self::ExpandLeft,
+            (false, true) => Self::ExpandRight,
+            (true, true) => Self::ExpandRightThenLeft,
+        }
+    }
+}
+
+fn can_break(expr: &Expr) -> bool {
     use ruff_python_ast::prelude::*;
 
-    if expr.left.is_bin_op_expr() {
-        false
-    } else {
-        match expr.right.as_ref() {
-            Expr::Tuple(ExprTuple {
-                elts: expressions, ..
-            })
-            | Expr::List(ExprList {
-                elts: expressions, ..
-            })
-            | Expr::Set(ExprSet {
-                elts: expressions, ..
-            })
-            | Expr::Dict(ExprDict {
-                values: expressions,
-                ..
-            }) => !expressions.is_empty(),
-            Expr::Call(ExprCall { args, keywords, .. }) => !args.is_empty() && !keywords.is_empty(),
-            Expr::ListComp(_) | Expr::SetComp(_) | Expr::DictComp(_) | Expr::GeneratorExp(_) => {
-                true
-            }
-            _ => false,
-        }
+    match expr {
+        Expr::Tuple(ExprTuple {
+            elts: expressions, ..
+        })
+        | Expr::List(ExprList {
+            elts: expressions, ..
+        })
+        | Expr::Set(ExprSet {
+            elts: expressions, ..
+        })
+        | Expr::Dict(ExprDict {
+            values: expressions,
+            ..
+        }) => !expressions.is_empty(),
+        Expr::Call(ExprCall { args, keywords, .. }) => !args.is_empty() && !keywords.is_empty(),
+        Expr::ListComp(_) | Expr::SetComp(_) | Expr::DictComp(_) | Expr::GeneratorExp(_) => true,
+        _ => false,
     }
 }
