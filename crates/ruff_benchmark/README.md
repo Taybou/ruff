@@ -12,7 +12,7 @@ cargo benchmark
 
 ## Benchmark driven Development
 
-You can use `--save-baseline=<name>` to store an initial baseline benchmark (e.g. on `main`) and
+Ruff uses [Criterion.rs](https://bheisler.github.io/criterion.rs/book/) for benchmarks. You can use `--save-baseline=<name>` to store an initial baseline benchmark (e.g. on `main`) and
 then use `--benchmark=<name>` to compare against that benchmark. Criterion will print a message
 telling you if the benchmark improved/regressed compared to that baseline.
 
@@ -68,9 +68,13 @@ Then convert the recorded profile
 perf script -F +pid > /tmp/test.perf
 ```
 
-You can now view the converted file with [firefox profiler](https://profiler.firefox.com/)
+You can now view the converted file with [firefox profiler](https://profiler.firefox.com/), with a more in-depth guide [here](https://profiler.firefox.com/docs/#/./guide-perf-profiling)
 
-You can find a more in-depth guide [here](https://profiler.firefox.com/docs/#/./guide-perf-profiling)
+An alternative is to convert the perf data to `flamegraph.svg` using [flamegraph](https://github.com/flamegraph-rs/flamegraph) (`cargo install flamegraph`):
+
+```shell
+flamegraph --perfdata perf.data
+```
 
 ### Mac
 

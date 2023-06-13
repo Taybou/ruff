@@ -6,6 +6,7 @@ github_search*.jsonl
 schemastore
 .venv*
 scratch.py
+perf.data
 
 ###
 # Rust.gitignore
