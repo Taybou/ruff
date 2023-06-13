@@ -1353,7 +1353,7 @@ impl<'a> SimpleCallArgs<'a> {
     ) -> Self {
         let args = args
             .into_iter()
-            .take_while(|arg| !matches!(arg, Expr::Starred(_)))
+            .take_while(|arg| !arg.is_starred_expr())
             .collect();
 
         let kwargs = keywords

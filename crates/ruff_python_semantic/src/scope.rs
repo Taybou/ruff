@@ -119,6 +119,16 @@ impl<'a> Scope<'a> {
         self.bindings.iter().map(|(&name, &id)| (name, id))
     }
 
+    pub fn all_bindings(&self) -> impl Iterator<Item = (&str, BindingId)> + '_ {
+        self.bindings
+            .iter()
+            .map(|(name, id)| {
+                std::iter::successors(Some(*id), |id| self.shadowed_bindings.get(id).copied())
+                    .map(|id| (*name, id))
+            })
+            .flatten()
+    }
+
     /// Returns an iterator over all [bindings](BindingId) bound to the given name, including
     /// those that were shadowed by later bindings.
     pub fn bindings_for_name(&self, name: &str) -> impl Iterator<Item = BindingId> + '_ {
