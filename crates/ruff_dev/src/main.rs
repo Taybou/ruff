@@ -4,7 +4,9 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use ruff_cli::args::CheckArgs;
 
+mod check_formatter_stability;
 mod generate_all;
 mod generate_cli_help;
 mod generate_docs;
@@ -27,6 +29,7 @@ struct Args {
 }
 
 #[derive(Subcommand)]
+#[allow(clippy::large_enum_variant)]
 enum Command {
     /// Run all code and documentation generation steps.
     GenerateAll(generate_all::Args),
@@ -48,22 +51,26 @@ enum Command {
     PrintTokens(print_tokens::Args),
     /// Run round-trip source code generation on a given Python file.
     RoundTrip(round_trip::Args),
+    /// Format a repository twice and ensure that it looks that the first and second formatting
+    /// look the same. Same arguments as `ruff check`
+    CheckFormatterStability(CheckArgs),
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
     #[allow(clippy::print_stdout)]
-    match &args.command {
-        Command::GenerateAll(args) => generate_all::main(args)?,
-        Command::GenerateJSONSchema(args) => generate_json_schema::main(args)?,
+    match args.command {
+        Command::GenerateAll(args) => generate_all::main(&args)?,
+        Command::GenerateJSONSchema(args) => generate_json_schema::main(&args)?,
         Command::GenerateRulesTable => println!("{}", generate_rules_table::generate()),
         Command::GenerateOptions => println!("{}", generate_options::generate()),
-        Command::GenerateCliHelp(args) => generate_cli_help::main(args)?,
-        Command::GenerateDocs(args) => generate_docs::main(args)?,
-        Command::PrintAST(args) => print_ast::main(args)?,
-        Command::PrintCST(args) => print_cst::main(args)?,
-        Command::PrintTokens(args) => print_tokens::main(args)?,
-        Command::RoundTrip(args) => round_trip::main(args)?,
+        Command::GenerateCliHelp(args) => generate_cli_help::main(&args)?,
+        Command::GenerateDocs(args) => generate_docs::main(&args)?,
+        Command::PrintAST(args) => print_ast::main(&args)?,
+        Command::PrintCST(args) => print_cst::main(&args)?,
+        Command::PrintTokens(args) => print_tokens::main(&args)?,
+        Command::RoundTrip(args) => round_trip::main(&args)?,
+        Command::CheckFormatterStability(args) => check_formatter_stability::main(args)?,
     }
     Ok(())
 }
