@@ -4319,11 +4319,11 @@ impl<'a> Checker<'a> {
                 .is_annotation()
             {
                 self.semantic_model
-                    .add_delayed_annotation(binding_id, shadowed_id);
+                    .add_delayed_annotation(shadowed_id, binding_id);
                 return binding_id;
             }
 
-            let shadowed = &self.semantic_model.bindings[binding_id];
+            let shadowed = &self.semantic_model.bindings[shadowed_id];
             match &shadowed.kind {
                 BindingKind::Builtin => {
                     // Avoid overriding builtins.
