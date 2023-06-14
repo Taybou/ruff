@@ -4,7 +4,6 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use ruff_cli::args::CheckArgs;
 
 mod check_formatter_stability;
 mod generate_all;
@@ -53,7 +52,7 @@ enum Command {
     RoundTrip(round_trip::Args),
     /// Format a repository twice and ensure that it looks that the first and second formatting
     /// look the same. Same arguments as `ruff check`
-    CheckFormatterStability(CheckArgs),
+    CheckFormatterStability(check_formatter_stability::Args),
 }
 
 fn main() -> Result<()> {
@@ -70,7 +69,7 @@ fn main() -> Result<()> {
         Command::PrintCST(args) => print_cst::main(&args)?,
         Command::PrintTokens(args) => print_tokens::main(&args)?,
         Command::RoundTrip(args) => round_trip::main(&args)?,
-        Command::CheckFormatterStability(args) => check_formatter_stability::main(args)?,
+        Command::CheckFormatterStability(args) => check_formatter_stability::main(&args)?,
     }
     Ok(())
 }

@@ -4,6 +4,8 @@
 #![allow(clippy::print_stdout)]
 
 use anyhow::Context;
+use clap;
+use clap::Parser;
 use log::debug;
 use ruff::resolver::python_files_in_path;
 use ruff_cli::args::CheckArgs;
@@ -12,15 +14,47 @@ use ruff_python_formatter::format_module;
 use similar::{ChangeTag, TextDiff};
 use std::io::Write;
 use std::panic::catch_unwind;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
-use std::{fs, io};
+use std::{fs, io, iter};
 
-pub(crate) fn main(args: CheckArgs) -> anyhow::Result<()> {
+#[derive(Copy, Clone, PartialEq, Eq, clap::ValueEnum, Default)]
+pub(crate) enum Format {
+    // Filenames only
+    Minimal,
+    // Filenames and reduced diff
+    #[default]
+    Default,
+    // Full diff and invalid code
+    Full,
+}
+
+#[derive(clap::Args)]
+pub(crate) struct Args {
+    /// Like `ruff check`'s files
+    pub(crate) files: Vec<PathBuf>,
+    #[arg(long, default_value_t, value_enum)]
+    pub(crate) format: Format,
+}
+
+/// Generate ourself a try_parse_from impl for CheckArgs. This is a strange way to use clap but we
+/// want the same behaviour as ruff_cli and clap seems to lack a way to parse directly to `Args`
+/// instead of a `Parser`
+#[derive(Debug, clap::Parser)]
+struct WrapperArgs {
+    #[clap(flatten)]
+    check_args: CheckArgs,
+}
+
+pub(crate) fn main(args: &Args) -> anyhow::Result<()> {
     let start = Instant::now();
 
     // Find files to check (or in this case, format twice). Adapted from ruff_cli
-    let (cli, overrides) = args.partition();
+    // First argument is ignored
+    let dummy = PathBuf::from("check");
+    let check_args_input = iter::once(&dummy).chain(&args.files);
+    let check_args = WrapperArgs::try_parse_from(check_args_input)?.check_args;
+    let (cli, overrides) = check_args.partition();
     let pyproject_config = resolve(
         cli.isolated,
         cli.config.as_deref(),
@@ -66,14 +100,45 @@ pub(crate) fn main(args: CheckArgs) -> anyhow::Result<()> {
                 reformatted,
             } => {
                 println!("Unstable formatting {}", file.display());
-                diff_show_only_changes(io::stdout().lock().by_ref(), &formatted, &reformatted)?;
+                match args.format {
+                    Format::Minimal => {}
+                    Format::Default => {
+                        diff_show_only_changes(
+                            io::stdout().lock().by_ref(),
+                            &formatted,
+                            &reformatted,
+                        )?;
+                    }
+                    Format::Full => {
+                        let diff = TextDiff::from_lines(&formatted, &reformatted)
+                            .unified_diff()
+                            .header("Formatted once", "Formatted twice")
+                            .to_string();
+                        println!(
+                            r#"Reformatting the formatted code a second time resulted in formatting changes.
+---
+{diff}---
+
+Formatted once:
+---
+{formatted}---
+
+Formatted twice:
+---
+{reformatted}---"#,
+                        );
+                    }
+                }
             }
-            FormatterStabilityError::InvalidSyntax { err, formatted: _ } => {
+            FormatterStabilityError::InvalidSyntax { err, formatted } => {
                 println!(
                     "Formatter generated invalid syntax {}: {}",
                     file.display(),
                     err
                 );
+                if args.format == Format::Full {
+                    println!("---\n{}\n---\n", formatted);
+                }
             }
             FormatterStabilityError::Panic { message } => {
                 println!("Panic {}: {}", file.display(), message);
