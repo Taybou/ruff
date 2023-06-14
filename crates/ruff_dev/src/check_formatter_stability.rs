@@ -8,6 +8,7 @@ use clap;
 use clap::Parser;
 use log::debug;
 use ruff::resolver::python_files_in_path;
+use ruff::settings::types::{FilePattern, FilePatternSet};
 use ruff_cli::args::CheckArgs;
 use ruff_cli::resolve::resolve;
 use ruff_python_formatter::format_module;
@@ -59,12 +60,18 @@ pub(crate) fn main(args: &Args) -> anyhow::Result<ExitCode> {
     let check_args_input = iter::once(&dummy).chain(&args.files);
     let check_args: CheckArgs = WrapperArgs::try_parse_from(check_args_input)?.check_args;
     let (cli, overrides) = check_args.partition();
-    let pyproject_config = resolve(
+    let mut pyproject_config = resolve(
         cli.isolated,
         cli.config.as_deref(),
         &overrides,
         cli.stdin_filename.as_deref(),
     )?;
+    // We don't want pyproject.toml
+    pyproject_config.settings.lib.include = FilePatternSet::try_from_vec(vec![
+        FilePattern::Builtin("*.py"),
+        FilePattern::Builtin("*.pyi"),
+    ])
+    .unwrap();
     let (paths, _resolver) = python_files_in_path(&cli.files, &pyproject_config, &overrides)?;
     assert!(!paths.is_empty(), "no python files in {:?}", cli.files);
 
