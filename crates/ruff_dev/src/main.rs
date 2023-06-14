@@ -4,6 +4,7 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use std::process::ExitCode;
 
 mod check_formatter_stability;
 mod generate_all;
@@ -55,7 +56,7 @@ enum Command {
     CheckFormatterStability(check_formatter_stability::Args),
 }
 
-fn main() -> Result<()> {
+fn main() -> Result<ExitCode> {
     let args = Args::parse();
     #[allow(clippy::print_stdout)]
     match args.command {
@@ -69,7 +70,10 @@ fn main() -> Result<()> {
         Command::PrintCST(args) => print_cst::main(&args)?,
         Command::PrintTokens(args) => print_tokens::main(&args)?,
         Command::RoundTrip(args) => round_trip::main(&args)?,
-        Command::CheckFormatterStability(args) => check_formatter_stability::main(&args)?,
+        Command::CheckFormatterStability(args) => {
+            let exit_code = check_formatter_stability::main(&args)?;
+            return Ok(exit_code);
+        }
     }
-    Ok(())
+    Ok(ExitCode::SUCCESS)
 }

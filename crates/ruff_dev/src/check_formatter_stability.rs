@@ -15,6 +15,7 @@ use similar::{ChangeTag, TextDiff};
 use std::io::Write;
 use std::panic::catch_unwind;
 use std::path::{Path, PathBuf};
+use std::process::ExitCode;
 use std::time::Instant;
 use std::{fs, io, iter};
 
@@ -35,6 +36,9 @@ pub(crate) struct Args {
     pub(crate) files: Vec<PathBuf>,
     #[arg(long, default_value_t, value_enum)]
     pub(crate) format: Format,
+    /// Print only the first error and exit. `-x` is same as pytest
+    #[arg(long, short = 'x')]
+    pub(crate) exit_first_error: bool,
 }
 
 /// Generate ourself a try_parse_from impl for CheckArgs. This is a strange way to use clap but we
@@ -46,14 +50,14 @@ struct WrapperArgs {
     check_args: CheckArgs,
 }
 
-pub(crate) fn main(args: &Args) -> anyhow::Result<()> {
+pub(crate) fn main(args: &Args) -> anyhow::Result<ExitCode> {
     let start = Instant::now();
 
     // Find files to check (or in this case, format twice). Adapted from ruff_cli
     // First argument is ignored
     let dummy = PathBuf::from("check");
     let check_args_input = iter::once(&dummy).chain(&args.files);
-    let check_args = WrapperArgs::try_parse_from(check_args_input)?.check_args;
+    let check_args: CheckArgs = WrapperArgs::try_parse_from(check_args_input)?.check_args;
     let (cli, overrides) = check_args.partition();
     let pyproject_config = resolve(
         cli.isolated,
@@ -92,8 +96,11 @@ pub(crate) fn main(args: &Args) -> anyhow::Result<()> {
             Ok(()) => None,
         });
 
+    let mut any_errors = false;
+
     // Don't collect the iterator so we already see errors while it's still processing
     for (error, file) in errors {
+        any_errors = true;
         match error {
             FormatterStabilityError::Unstable {
                 formatted,
@@ -147,6 +154,10 @@ Formatted twice:
                 println!("Uncategorized error {}: {}", file.display(), err);
             }
         }
+
+        if args.exit_first_error {
+            return Ok(ExitCode::FAILURE);
+        }
     }
     let duration = start.elapsed();
     println!(
@@ -155,7 +166,11 @@ Formatted twice:
         duration.as_secs_f32()
     );
 
-    Ok(())
+    if any_errors {
+        Ok(ExitCode::FAILURE)
+    } else {
+        Ok(ExitCode::SUCCESS)
+    }
 }
 
 /// A diff that only shows a header and changes, but nothing unchanged. This makes viewing multiple
