@@ -702,11 +702,11 @@ impl<'a> SemanticModel<'a> {
         self.references.resolve(reference_id)
     }
 
-    /// Return the [`TextRange`]s of all references to the given [`BindingId`].
-    pub fn references(&self, name: &str, scope: &Scope) -> Vec<TextRange> {
+    /// Return the [`TextRange`] of every read and write reference to a given symbol.
+    pub fn spans(&self, name: &str, scope: &Scope) -> Vec<TextRange> {
         let mut references = Vec::new();
 
-        for binding_id in scope.bindings_for_name(name) {
+        for binding_id in scope.get_all(name) {
             // Add the "write" reference that created this binding.
             references.push(self.bindings[binding_id].range);
 

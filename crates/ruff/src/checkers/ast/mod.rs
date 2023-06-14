@@ -4753,7 +4753,7 @@ impl<'a> Checker<'a> {
         let exports: Vec<(&str, TextRange)> = {
             let global_scope = self.semantic_model.global_scope();
             global_scope
-                .bindings_for_name("__all__")
+                .get_all("__all__")
                 .map(|binding_id| &self.semantic_model.bindings[binding_id])
                 .filter_map(|binding| match &binding.kind {
                     BindingKind::Export(Export { names }) => {
@@ -5034,7 +5034,7 @@ impl<'a> Checker<'a> {
         let exports: Option<Vec<&str>> = {
             let global_scope = self.semantic_model.global_scope();
             global_scope
-                .bindings_for_name("__all__")
+                .get_all("__all__")
                 .map(|binding_id| &self.semantic_model.bindings[binding_id])
                 .filter_map(|binding| match &binding.kind {
                     BindingKind::Export(Export { names }) => Some(names.iter().copied()),
